@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     QDRANT_CLUSTER_ENDPOINT: str 
 
     # Telegram Bot
-    TELE_BOT_TOKEN: str 
+    TELE_BOT_TOKEN: str | None = None
+    
 
     class Config:
         env_file = str(ENV_FILE) if ENV_FILE.exists() else None
