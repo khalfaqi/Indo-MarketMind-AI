@@ -1,24 +1,39 @@
-import asyncio
-import logging
-from datetime import datetime
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+import uuid
+from langchain.messages import HumanMessage
+from pydantic import BaseModel, Field
+from typing import Optional
+from fastapi import FastAPI, HTTPException
+from app.agent.brain import build_agent_graph
 
-from app.config.settings import settings
-from app.scrapers.news_scraper import CommodityNewsScraper
-from app.services.db_service import QdrantService
+agent_graph = build_agent_graph()
 
-# FastAPI
+app = FastAPI(title="Welcome to MarketMind")
 
-from fastapi import FastAPI
-from app.agent.brain import agent_graph
+class ChatRequest(BaseModel):
+    question: str                         
+    thread_id: Optional[str] = None  
 
-app = FastAPI()
+class ChatResponse(BaseModel):
+    answer: str
+    thread_id: str
 
-@app.post("/query")
-async def handle_query(query: str):
-    initial_state = {
-        "messages": [{"role": "user", "content": query}]
-    }
-    final_state = await agent_graph.ainvoke(initial_state)
-    return {"response": final_state.get("messages", [])[-1].content if final_state.get("messages") else "Maaf, saya tidak bisa menjawab pertanyaan Anda."}
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+
+    thread_id = request.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+
+    try:
+        response = await agent_graph.ainvoke(
+            {"messages": [HumanMessage(content=request.question)]},  
+            config=config
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    last_message = response["messages"][-1]
+
+    return ChatResponse(
+        answer=last_message.content,
+        thread_id=thread_id  
+    )

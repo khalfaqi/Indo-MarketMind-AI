@@ -22,6 +22,7 @@ dependencies = [
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "python-dotenv>=1.2.1",
+    "python-telegram-bot>=22.6",
     "qdrant-client>=1.16.2",
     "requests>=2.32.5",
     "sentence-transformers>=5.2.3",
@@ -29,6 +30,7 @@ dependencies = [
     "telebot>=0.0.5",
     "telegram>=0.0.1",
     "trafilatura>=2.0.0",
+    "uvicorn>=0.40.0",
     "yfinance>=1.2.0",
     "youtube-transcript-api>=1.2.4",
 ]
