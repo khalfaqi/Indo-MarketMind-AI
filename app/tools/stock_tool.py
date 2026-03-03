@@ -24,7 +24,7 @@ async def get_stock_analysis(ticker: str) -> str:
         income_stmt = await asyncio.to_thread(lambda: stock.quarterly_income_stmt)
         
         if not income_stmt.empty:
-            # Ambil tanggal terbaru dari kolom pertama (misal: 2025-09-30 atau 2025-12-31)
+            # Ambil tanggal terbaru dari kolom pertama
             latest_date = income_stmt.columns[0]
             date_str = latest_date.strftime('%d %B %Y')
             
@@ -35,7 +35,7 @@ async def get_stock_analysis(ticker: str) -> str:
             date_str = "Tidak terdeteksi"
             net_income_formatted = "N/A"
 
-        # 3. Harga Terkini (Februari 2026)
+        # 3. Harga Terkini 
         hist = await asyncio.to_thread(lambda: stock.history(period="1d"))
         current_price = hist['Close'].iloc[-1] if not hist.empty else 0
 

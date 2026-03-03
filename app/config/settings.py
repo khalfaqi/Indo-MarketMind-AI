@@ -7,7 +7,7 @@ ENV_FILE = ROOT_DIR / ".env"
 class Settings(BaseSettings):
     # LLM
     GROQ_API_KEY: str
-    LLM_MODEL: str = "llama-3.3-70b-versatile"
+    LLM_MODEL: str = "llama-3.3-70b-versatile" 
     LLM_MAX_TOKENS: int = 1024
 
     # Embeddings
