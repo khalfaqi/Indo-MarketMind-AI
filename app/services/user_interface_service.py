@@ -105,7 +105,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             data = response.json()
 
         answer = data.get("answer", "Maaf, tidak ada jawaban.")
-        await update.message.reply_text(answer, parse_mode="Markdown")
+        await update.message.reply_text(answer)
 
     except httpx.TimeoutException:
         await update.message.reply_text(
@@ -124,12 +124,17 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 async def run_bot():
-    app = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
+    app = Application.builder().token(settings.TELE_BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("start",  start_handler))
-    app.add_handler(CommandHandler("reset",  reset_handler))
+    app.add_handler(CommandHandler("start", start_handler))
+    app.add_handler(CommandHandler("reset", reset_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-    asyncio.create_task(session_cleanup_loop())
+    asyncio.create_task(session_cleanup_loop()) 
 
-    await app.run_polling(drop_pending_updates=True)
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(drop_pending_updates=True)
+
+    await asyncio.Event().wait()
+

@@ -8,6 +8,10 @@ _classifier_llm = ChatGroq(
     temperature=0,
 )
 
+from app.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 CLASSIFIER_PROMPT = """Kamu adalah asisten cerdas untuk sistem analisa saham Bursa Efek Indonesia (BEI/IDX).
 
 ## Tugasmu
@@ -69,31 +73,53 @@ Gunakan pengetahuanmu tentang emiten BEI untuk mengenali nama lain yang tidak te
 
 async def classify_intent(state: AgentState) -> AgentState:
     """Node: Klasifikasikan intent sebelum routing ke tool yang tepat."""
-
     user_query = state["messages"][-1].content
+    logger.info("[classify_intent] START | query_preview='%s'", user_query[:80])
 
-    structured_llm = _classifier_llm.with_structured_output(IntentPlan)
-    plan: IntentPlan = await structured_llm.ainvoke([
-        {"role": "system", "content": CLASSIFIER_PROMPT},
-        {"role": "user", "content": user_query}
-    ])
-    
-    return {
-        "intent": plan.intent,
-        "ticker": plan.ticker,
-        "needs_clarification": plan.needs_clarification,
-    }
+    try:
+        structured_llm = _classifier_llm.with_structured_output(IntentPlan)
+        plan: IntentPlan = await structured_llm.ainvoke([
+            {"role": "system", "content": CLASSIFIER_PROMPT},
+            {"role": "user", "content": user_query}
+        ])
+        logger.info(
+            "[classify_intent] SUCCESS | intent=%s | ticker=%s | needs_clarification=%s",
+            plan.intent,
+            plan.ticker or "N/A",
+            plan.needs_clarification,
+        )
+        return {
+            "intent": plan.intent,
+            "ticker": plan.ticker,
+            "needs_clarification": plan.needs_clarification,
+        }
+    except Exception as e:
+        logger.error("[classify_intent] ERROR | query_preview='%s' | error=%s", user_query[:80], e, exc_info=True)
+        raise
+
 
 def route_by_intent(state: AgentState) -> str:
-    if state.get("needs_clarification"):
-        return "ask_clarification"
-    
     intent = state.get("intent")
-    
+    ticker = state.get("ticker", "N/A")
+    needs_clarification = state.get("needs_clarification", False)
+
+    logger.info(
+        "[route_by_intent] Routing | intent=%s | ticker=%s | needs_clarification=%s",
+        intent, ticker, needs_clarification,
+    )
+
+    if needs_clarification:
+        logger.info("[route_by_intent] -> ask_clarification (ticker unclear)")
+        return "ask_clarification"
+
     if intent in ["analysis", "news", "hybrid"]:
+        logger.info("[route_by_intent] -> run_tool_call | intent=%s | ticker=%s", intent, ticker)
         return "run_tool_call"
-    
+
     if intent == "reject":
+        logger.warning("[route_by_intent] -> reject_query | intent=%s | ticker=%s", intent, ticker)
         return "reject_query"
 
+    logger.info("[route_by_intent] -> direct_answer | intent=%s", intent)
     return "direct_answer"
+

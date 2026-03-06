@@ -1,5 +1,5 @@
 import uuid
-from langchain.messages import HumanMessage
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 from typing import Optional
 from fastapi import FastAPI, HTTPException
@@ -31,9 +31,9 @@ async def chat(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    last_message = response["messages"][-1]
+    last_message = response["messages"][-1] 
 
     return ChatResponse(
-        answer=last_message.content,
+        answer=last_message.content if last_message else "Maaf, tidak ada jawaban.",
         thread_id=thread_id  
     )

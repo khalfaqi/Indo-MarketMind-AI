@@ -15,8 +15,8 @@ from app.agent.nodes import (
 tool_node = ToolNode(TOOLS)
 checkpointer = InMemorySaver()
 
-
 def build_agent_graph() -> StateGraph:
+
     workflow = StateGraph(AgentState)
 
     # Nodes
