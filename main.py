@@ -30,8 +30,10 @@ async def chat(request: ChatRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    print("DEBUG RESPONSE:", response)
 
-    last_message = response["messages"][-1] 
+    last_message = response["messages"][-1]
 
     return ChatResponse(
         answer=last_message.content if last_message else "Maaf, tidak ada jawaban.",

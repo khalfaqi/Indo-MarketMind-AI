@@ -46,7 +46,6 @@ INTENT_INSTRUCTION = {
     ),
 }
 
-
 async def run_tool_call(state: AgentState) -> AgentState:
     """Node: LLM memutuskan tool mana yang dipanggil, dipandu intent & ticker."""
     intent = state.get("intent", "hybrid")

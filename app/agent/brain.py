@@ -40,7 +40,7 @@ def build_agent_graph() -> StateGraph:
 
     workflow.add_conditional_edges("run_tool_call", tools_condition, {
     "tools": "tools",
-    END:     "generate_final_answer",
+    END:     END,
     })
 
     workflow.add_edge("tools",                 "run_tool_call")  

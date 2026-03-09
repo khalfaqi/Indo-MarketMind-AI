@@ -61,7 +61,6 @@ async def get_latest_news(ticker: str) -> str:
     try:
         service = QdrantService(collection_name="saham_news")        
         search_results = await service.search(
-            collection_name="saham_news", 
             query_text=ticker, 
             limit=3
         )

@@ -3,7 +3,8 @@ import os
 import uuid 
 from qdrant_client import AsyncQdrantClient
 from sentence_transformers import SentenceTransformer
-from qdrant_client.models import MatchAny, PointStruct, Distance, VectorParams, PayloadSchemaType, datetime
+from qdrant_client.models import MatchAny, PointStruct, Distance, VectorParams, PayloadSchemaType
+from datetime import datetime
 from app.config.settings import settings
 from groq import AsyncGroq
 from qdrant_client.models import Filter, FieldCondition, Range
@@ -14,7 +15,6 @@ from zoneinfo import ZoneInfo
 class QdrantService:
     def __init__(self, collection_name: str = "saham_news"):
         self.collection_name = collection_name
-        self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
         self._embed_model = None
 
         if "http" in settings.QDRANT_CLUSTER_ENDPOINT: # Kalau ada "http" → endpoint adalah full URL (cloud/remote)
@@ -116,9 +116,9 @@ class QdrantService:
                        ).tolist()
                         
 
-        search_result = await self.qdrant.search(
+        search_result = await self.qdrant.query_points(
             collection_name=self.collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             limit=limit,
             # filter=Filter(
             #     must=[
@@ -127,5 +127,5 @@ class QdrantService:
             #     ]
             # )
         )
-        return search_result
+        return search_result.points
 
