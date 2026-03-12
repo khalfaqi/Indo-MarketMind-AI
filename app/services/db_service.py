@@ -125,4 +125,78 @@ class QdrantService:
             # query_filter=
         )
         return search_result.points
+    
+    #kode dibawah bertujuan agar informasi saling terkoneksi melalui url(payload/metadata) yang sama terlepas dari point_id yang berbeda karena chuncking
 
+# async def _fetch_neighbors(self, url: str, chunk_index: int, total_chunks: int) -> list:
+#     """Ambil chunk tetangga (chunk_index ± 1) dari url yang sama"""
+#     neighbor_indices = []
+#     if chunk_index > 0:
+#         neighbor_indices.append(chunk_index - 1)
+#     if chunk_index < total_chunks - 1:
+#         neighbor_indices.append(chunk_index + 1)
+
+#     if not neighbor_indices:
+#         return []
+
+#     result = await self.qdrant.scroll(
+#         collection_name=self.collection_name,
+#         scroll_filter=Filter(
+#             must=[
+#                 FieldCondition(key="url", match=MatchValue(value=url)),
+#                 FieldCondition(key="chunk_index", match=MatchAny(any=neighbor_indices))
+#             ]
+#         ),
+#         limit=len(neighbor_indices),
+#         with_payload=True,
+#     )
+#     return result[0]  # result = (points, next_page_offset)
+
+
+# async def search(self, query_text: str, limit: int = 5, filter_commodity: str = None, filter_stock: str = None):
+#     query_vector = self.embed_model.encode(
+#         query_text.replace("\n", " ")
+#     ).tolist()
+
+#     must_conditions = []
+#     if filter_commodity:
+#         must_conditions.append(
+#             FieldCondition(key="related_commodities", match=MatchAny(any=[filter_commodity]))
+#         )
+#     if filter_stock:
+#         must_conditions.append(
+#             FieldCondition(key="related_stocks", match=MatchAny(any=[filter_stock]))
+#         )
+
+#     search_result = await self.qdrant.query_points(
+#         collection_name=self.collection_name,
+#         query=query_vector,
+#         limit=limit,
+#         query_filter=Filter(must=must_conditions) if must_conditions else None
+#     )
+
+#     # Kumpulkan semua chunk: hasil search + neighbor-nya
+#     seen_ids = set()
+#     enriched_points = []
+
+#     for point in search_result.points:
+#         if point.id not in seen_ids:
+#             seen_ids.add(point.id)
+#             enriched_points.append(point)
+
+#         # Ambil neighbor dari url yang sama
+#         neighbors = await self._fetch_neighbors(
+#             url=point.payload["url"],
+#             chunk_index=point.payload["chunk_index"],
+#             total_chunks=point.payload["total_chunks"]
+#         )
+
+#         for neighbor in neighbors:
+#             if neighbor.id not in seen_ids:  # hindari duplikat
+#                 seen_ids.add(neighbor.id)
+#                 enriched_points.append(neighbor)
+
+#     # Urutkan per url + chunk_index supaya context berurutan
+#     enriched_points.sort(key=lambda p: (p.payload["url"], p.payload["chunk_index"]))
+
+#     return enriched_points

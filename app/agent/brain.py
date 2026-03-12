@@ -40,7 +40,7 @@ def build_agent_graph() -> StateGraph:
 
     workflow.add_conditional_edges("run_tool_call", tools_condition, {
     "tools": "tools",
-    END:     END,
+    END:     "generate_final_answer",
     })
 
     workflow.add_edge("tools",                 "run_tool_call")  
@@ -50,5 +50,3 @@ def build_agent_graph() -> StateGraph:
     workflow.add_edge("direct_answer",         END)
 
     return workflow.compile(checkpointer=checkpointer)
-
-
