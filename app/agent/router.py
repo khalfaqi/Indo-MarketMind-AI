@@ -1,14 +1,13 @@
 from langchain_groq import ChatGroq
 from app.agent.state import AgentState, IntentPlan
 from app.config.settings import settings
+from app.utils.logging import get_logger
 
 _classifier_llm = ChatGroq(
     api_key=settings.GROQ_API_KEY,
     model=settings.LLM_MODEL,
     temperature=0,
 )
-
-from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -28,7 +27,7 @@ Pahami maksud query user, lalu tentukan:
 - `news`      : user ingin berita terkini, pengumuman emiten, laporan keuangan,
                 aksi korporasi (dividen, right issue, merger), atau sentimen pasar
 - `hybrid`    : query butuh analisis DAN berita sekaligus —
-                contoh: "kenapa BBCA turun hari ini?", "apakah layak beli Telkom sekarang?"
+                contoh: "kenapa BBCA turun hari ini?, Coba analisis dan apakah ada berita terbaru?" 
 - `reject`    : saham yang dimaksud bukan dari BEI/IDX (bursa asing seperti NYSE, NASDAQ, dll.),
                 atau query sama sekali tidak berkaitan dengan saham
 
@@ -112,14 +111,16 @@ def route_by_intent(state: AgentState) -> str:
         logger.info("[route_by_intent] -> ask_clarification (ticker unclear)")
         return "ask_clarification"
 
-    if intent in ["analysis", "news", "hybrid"]:
+    if intent in ["analysis", "news"]:
         logger.info("[route_by_intent] -> run_tool_call | intent=%s | ticker=%s", intent, ticker)
         return "run_tool_call"
+    
+    if intent == "hybrid":
+        logger.info("[route_by_intent] -> run_hybrid_tools | intent=%s | ticker=%s", intent, ticker)
+        return "run_hybrid_tools" 
 
     if intent == "reject":
         logger.warning("[route_by_intent] -> reject_query | intent=%s | ticker=%s", intent, ticker)
         return "reject_query"
 
-    logger.info("[route_by_intent] -> direct_answer | intent=%s", intent)
-    return "direct_answer"
 

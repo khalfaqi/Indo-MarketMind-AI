@@ -1,10 +1,11 @@
 import asyncio
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from app.agent.state import AgentState
 from app.config.settings import settings
 from app.tools.stock_tool import TOOLS
 from langchain_groq import ChatGroq
 from app.utils.logging import get_logger
+from app.tools.stock_tool import get_stock_analysis, get_latest_news
 
 
 logger = get_logger(__name__)
@@ -46,6 +47,11 @@ INTENT_INSTRUCTION = {
     ),
 }
 
+INTENT_TOOLS = {
+    "analysis": [get_stock_analysis],
+    "news":     [get_latest_news],
+    }
+
 async def run_tool_call(state: AgentState) -> AgentState:
     """Node: LLM memutuskan tool mana yang dipanggil, dipandu intent & ticker."""
     intent = state.get("intent", "hybrid")
@@ -56,7 +62,8 @@ async def run_tool_call(state: AgentState) -> AgentState:
     enriched_system = f"{SYSTEM_PROMPT}\n\n## Instruksi Sesi Ini\n{intent_ctx}"
 
     try:
-        llm_with_tools = _llm.bind_tools(TOOLS)
+        allowed_tools  = INTENT_TOOLS.get(intent, TOOLS)
+        llm_with_tools = _llm.bind_tools(allowed_tools)  
         messages = [{"role": "system", "content": enriched_system}] + state["messages"]
         response = await llm_with_tools.ainvoke(messages)
         logger.info(
@@ -84,22 +91,6 @@ async def generate_final_answer(state: AgentState) -> AgentState:
         logger.error("[generate_final_answer] ERROR | ticker=%s | error=%s", ticker, e, exc_info=True)
         raise
 
-
-async def direct_answer(state: AgentState) -> AgentState:
-    """Node: Jawab langsung tanpa tool (untuk pertanyaan general)."""
-    ticker = state.get("ticker", "N/A")
-    logger.info("[direct_answer] START | ticker=%s", ticker)
-
-    try:
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + state["messages"]
-        response = await _llm.ainvoke(messages)
-        logger.info("[direct_answer] SUCCESS | ticker=%s", ticker)
-        return {"messages": [response]}
-    except Exception as e:
-        logger.error("[direct_answer] ERROR | ticker=%s | error=%s", ticker, e, exc_info=True)
-        raise
-
-
 async def ask_clarification(state: AgentState) -> AgentState:
     """Node: Minta klarifikasi jika ticker tidak jelas."""
     logger.info("[ask_clarification] Ticker not found in state, requesting clarification.")
@@ -108,7 +99,6 @@ async def ask_clarification(state: AgentState) -> AgentState:
                 "Contoh: BBCA, TLKM, GOTO, BBRI, atau nama perusahaannya."
     )
     return {"messages": [response]}
-
 
 async def reject_query(state: AgentState) -> AgentState:
     """Node: Tolak query saham asing atau query tidak relevan."""
@@ -121,27 +111,27 @@ async def reject_query(state: AgentState) -> AgentState:
     message = FOREIGN_STOCK_REJECTION.format(ticker=ticker) if ticker else GENERAL_REJECTION
     return {"messages": [AIMessage(content=message)]}
 
+async def run_hybrid_tools(state: AgentState) -> AgentState:
+    """Node khusus hybrid: panggil dua tool secara paralel, deterministik."""
+    ticker = state.get("ticker", "")
+    logger.info("[run_hybrid_tools] START | ticker=%s | running analysis + news in parallel", ticker)
 
-# async def run_hybrid_tools(state: AgentState) -> AgentState:
-#     """Node khusus hybrid: panggil dua tool secara paralel, deterministik."""
-#     ticker = state.get("ticker", "")
-#     logger.info("[run_hybrid_tools] START | ticker=%s | running analysis + news in parallel", ticker)
+    try:
+        analysis_tool = next(t for t in TOOLS if t.name == "get_stock_analysis")
+        news_tool     = next(t for t in TOOLS if t.name == "get_latest_news")
 
-#     analysis_tool = next(t for t in TOOLS if t.name == "get_stock_analysis")
-#     news_tool     = next(t for t in TOOLS if t.name == "get_stock_news")
+        analysis_result, news_result = await asyncio.gather(
+            analysis_tool.ainvoke({"ticker": ticker}),
+            news_tool.ainvoke({"ticker": ticker}),
+        )
+        logger.info("[run_hybrid_tools] SUCCESS | ticker=%s | both tools returned results", ticker)
+    except Exception as e:
+        logger.error("[run_hybrid_tools] ERROR | ticker=%s | error=%s", ticker, e, exc_info=True)
+        raise
 
-#     try:
-#         analysis_result, news_result = await asyncio.gather(
-#             analysis_tool.ainvoke({"ticker": ticker}),
-#             news_tool.ainvoke({"ticker": ticker}),
-#         )
-#         logger.info("[run_hybrid_tools] SUCCESS | ticker=%s | both tools returned results", ticker)
-#     except Exception as e:
-#         logger.error("[run_hybrid_tools] ERROR | ticker=%s | error=%s", ticker, e, exc_info=True)
-#         raise
-
-#     context = (
-#         f"## Data Analisis Teknikal\n{analysis_result}\n\n"
-#         f"## Berita Terkini\n{news_result}"
-#     )
-#     return {"messages": [AIMessage(content=context)]}
+    context = (
+        "[DATA DARI SISTEM — BUKAN PERTANYAAN USER]\n\n"
+        f"## Data Analisis Teknikal\n{analysis_result}\n\n"
+        f"## Berita Terkini\n{news_result}"
+    )
+    return {"messages": [HumanMessage(content=context)]}

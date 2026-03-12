@@ -13,4 +13,4 @@ class IntentPlan(BaseModel):
     intent: Literal["analysis", "news", "hybrid", "reject"]
     ticker: str | None = None
     needs_clarification: bool = False
-    reasoning: str
+    #reasoning: str
