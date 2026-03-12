@@ -1,6 +1,3 @@
-from logging import Filter
-import os
-import uuid 
 from qdrant_client import AsyncQdrantClient
 from sentence_transformers import SentenceTransformer
 from qdrant_client.models import MatchAny, PointStruct, Distance, VectorParams, PayloadSchemaType
@@ -9,7 +6,7 @@ from app.config.settings import settings
 from groq import AsyncGroq
 from qdrant_client.models import Filter, FieldCondition, Range
 import time
-from app.tools.cleaning import clean_text, parse_article, validate_article, build_embed_text, generate_point_id, preprocess
+from app.tools.cleaning import preprocess_with_chunks
 from zoneinfo import ZoneInfo
 
 class QdrantService:
@@ -32,7 +29,7 @@ class QdrantService:
     def embed_model(self):
         """Lazy load — model hanya diinisialisasi sekali saat pertama dipakai"""
         if self._embed_model is None:
-            from sentence_transformers import SentenceTransformer
+            
             self._embed_model = SentenceTransformer(
                 settings.EMBEDDING_MODEL
             )
@@ -65,32 +62,37 @@ class QdrantService:
 
         for item in data_list:
             raw = item.model_dump() if hasattr(item, 'model_dump') else item
-            article = preprocess(raw)
-            if article is None:
+            chunk_articles = preprocess_with_chunks(raw)
+
+            if not chunk_articles:    
                 continue
 
-            text_to_embed = f"[{source_type.upper()}] {article['embedding_source']}"
+            for article in chunk_articles:    
+                text_to_embed = f"[{source_type.upper()}] {article['embedding_source']}"
+                vector = self.embed_model.encode(text_to_embed.replace("\n", " ")).tolist()
 
-            vector = self.embed_model.encode(
-                    text_to_embed.replace("\n", " ")
-                    ).tolist()
-
-            points.append(PointStruct(id=generate_point_id(article["url"]), vector=vector, # embedding
-                                    payload={                                              # metadata
-                                        "title":               article["title"],
-                                        "url":                 article["url"],
-                                        "source":              source_type,
-                                        "content":             article["content"],
-                                        "summary":             article["summary"],
-                                        "published_at":        article["published_at"],  
-                                        "related_commodities": article["related_commodities"], 
-                                        "related_stocks":      article["related_stocks"],      
-                                        "scraped_at":          scraped_timestamp,
-                                    }))
-            
+                points.append(
+                    PointStruct(
+                        id=article["point_id"], 
+                        vector=vector,
+                        payload={
+                            "title":               article["title"],
+                            "url":                 article["url"],
+                            "source":              source_type,
+                            "content":             article["content"],
+                            "summary":             article["summary"],
+                            "published_at":        article["published_at"],
+                            "related_commodities": article["related_commodities"],
+                            "related_stocks":      article["related_stocks"],
+                            "scraped_at":          scraped_timestamp,
+                            "chunk_index":         article.get("chunk_index", 0),   
+                            "total_chunks":        article.get("total_chunks", 1),  
+                        }
+                    )
+                )
+        
         await self.qdrant.upsert(collection_name=self.collection_name, points=points)
         print(f"Upserted {len(points)} points to Qdrant from {source_type}")
-
 
     async def prune_old_data(self, days: int = 7):
         """Hapus data yang scraped_at-nya lebih dari 7 hari yang lalu"""
@@ -120,12 +122,7 @@ class QdrantService:
             collection_name=self.collection_name,
             query=query_vector,
             limit=limit,
-            # filter=Filter(
-            #     must=[
-            #         FieldCondition(key="related_commodities", match=MatchAny(any=[filter_commodity])) if filter_commodity else None,
-            #         FieldCondition(key="related_stocks", match=MatchAny(any=[filter_stock])) if filter_stock else None,
-            #     ]
-            # )
+            # query_filter=
         )
         return search_result.points
 

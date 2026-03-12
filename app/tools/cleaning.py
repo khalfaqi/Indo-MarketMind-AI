@@ -120,6 +120,7 @@ def build_embed_text(article: dict) -> str:
     Fallback ke title + content jika embedding_source kosong.
     """
     embedding_source = article.get("embedding_source", "").strip()
+    
     if embedding_source:
         # Sudah di-build oleh scraper, tinggal bersihkan noise-nya
         return clean_text(embedding_source)
@@ -171,58 +172,57 @@ def preprocess(raw: dict) -> Optional[dict]:
 
     return article
 
-
-# def chunk_text(text: str, max_chars: int = 1000, overlap: int = 100) -> list[str]:
-#     """
-#     Potong teks panjang jadi beberapa chunk dengan overlap.
-#     overlap: jumlah karakter yang di-share antar chunk agar konteks tidak putus.
-#     """
-#     if len(text) <= max_chars:
-#         return [text]  # tidak perlu dichunk
+def chunk_text(text: str, max_chars: int = 1000, overlap: int = 100) -> list[str]:
+    """
+    Potong teks panjang jadi beberapa chunk dengan overlap.
+    overlap: jumlah karakter yang di-share antar chunk agar konteks tidak putus.
+    """
+    if len(text) <= max_chars:
+        return [text]  # tidak perlu dichunk
     
-#     chunks = []
-#     start = 0
-#     while start < len(text):
-#         end = start + max_chars
-#         chunk = text[start:end]
-#         # Potong di batas kalimat terdekat agar tidak putus di tengah kalimat
-#         if end < len(text):
-#             last_period = chunk.rfind(".")
-#             if last_period > max_chars * 0.6:  # minimal 60% chunk terisi
-#                 chunk = chunk[:last_period + 1]
-#                 end = start + last_period + 1
-#         chunks.append(chunk.strip())
-#         start = end - overlap  # mundur overlap karakter untuk konteks
-#     return chunks
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + max_chars
+        chunk = text[start:end]
+        # Potong di batas kalimat terdekat agar tidak putus di tengah kalimat
+        if end < len(text):
+            last_period = chunk.rfind(".")
+            if last_period > max_chars * 0.6:  # minimal 60% chunk terisi
+                chunk = chunk[:last_period + 1]
+                end = start + last_period + 1
+        chunks.append(chunk.strip())
+        start = end - overlap  # mundur overlap karakter untuk konteks
+    return chunks
 
 
-# def preprocess_with_chunks(raw: dict) -> list[dict]:
-#     """
-#     Versi preprocess() yang mendukung chunking.
-#     Return list of dicts — 1 artikel bisa jadi beberapa chunk.
-#     """
-#     article = preprocess(raw)
-#     if article is None:
-#         return []
+def preprocess_with_chunks(raw: dict) -> list[dict]:
+    """
+    Versi preprocess() yang mendukung chunking.
+    Return list of dicts — 1 artikel bisa jadi beberapa chunk.
+    """
+    article = preprocess(raw)
+    if article is None:
+        return []
 
-#     content = article["content"]
-#     chunks = chunk_text(content)
+    content = article["content"]
+    chunks = chunk_text(content)
 
-#     if len(chunks) == 1:
-#         return [article]  # tidak ada chunking, return as-is
+    if len(chunks) == 1:
+        return [article]  # tidak ada chunking
 
-#     result = []
-#     for i, chunk in enumerate(chunks):
-#         chunk_article = article.copy()
-#         chunk_article["content"]        = chunk
-#         chunk_article["chunk_index"]    = i          # urutan chunk
-#         chunk_article["total_chunks"]   = len(chunks)
-#         chunk_article["embedding_source"] = build_embed_text({
-#             **chunk_article, "content": chunk
-#         })
-#         # ID unik per chunk: hash dari URL + index chunk
-#         chunk_url = f"{article['url']}#chunk{i}"
-#         chunk_article["point_id"] = generate_point_id(chunk_url)
-#         result.append(chunk_article)
+    result = []
+    for i, chunk in enumerate(chunks):
+        chunk_article = article.copy()
+        chunk_article["content"]        = chunk
+        chunk_article["chunk_index"]    = i          
+        chunk_article["total_chunks"]   = len(chunks)
+        chunk_article["embedding_source"] = build_embed_text({
+            **chunk_article, "content": chunk
+        })
+        # ID unik per chunk: hash dari URL + index chunk
+        chunk_url = f"{article['url']}#chunk{i}"
+        chunk_article["point_id"] = generate_point_id(chunk_url)
+        result.append(chunk_article)
 
-#     return result
+    return result
